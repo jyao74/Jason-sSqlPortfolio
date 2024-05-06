@@ -1,0 +1,166 @@
+/* Returns,
+Upper level managers (Seniority level of 3+)
+Over $100K (salary + bonus)
+Non Glassdoor subscribers
+Reside in non at will states
+By State
+By Seniority Level
+Top 5 states
+Based on average salary
+Following metrics:
+·        Number of survey takers
+·        Average salary
+·        Highest salary
+·        Lowest salary
+·        Average bonus
+·        Highest bonus
+·        Lowest bonus
+·        Average total compensation (salary + bonus)
+·        Highest salary (salary + bonus)
+·        Lowest salary (salary + bonus)
+Sort by state
+Limit decimals to only 2 decimal places
+FOCAL POINT/BASE DATA: Non Glassdoor subscribers who are upper level managers who make over $100K that reside in non at will states.
+*/
+
+select 
+surv_name.state,
+glassdoor_survey_roles.seniority,
+count(glassdoor_survey_roles.empsurvid) as Survey_Count,
+cast(avg(glassdoor_survey_roles.basepay) as decimal(18,2)) as Avg_Salary,
+max(glassdoor_survey_roles.basepay) as Highest_Salary,
+min(glassdoor_survey_roles.basepay) as Lowest_Salary,
+cast( avg(glassdoor_survey_roles.bonus) as decimal(18,2)) as Avg_Bonus,
+max(glassdoor_survey_roles.bonus) as Highest_Bonus,
+min(glassdoor_survey_roles.bonus) as Lowest_Bonus,
+cast(avg(glassdoor_survey_roles.basepay+glassdoor_survey_roles.bonus) as decimal(18,2)) as Avg_Total_Pay,
+max(glassdoor_survey_roles.basepay+glassdoor_survey_roles.bonus) as Highest_Total_Pay,
+min(glassdoor_survey_roles.basepay+glassdoor_survey_roles.bonus) as Lowest_Total_Pay,
+from sub_list  right join glassdoor_survey_roles on sub_list.survey_id=glassdoor_survey_roles.empsurvid 
+inner join surv_name on surv_name.empsurvid=glassdoor_survey_roles.empsurvid
+left join at_will on at_will.short_state=surv_name.state
+
+where sub_list.survey_id is null and glassdoor_survey_roles.basepay+glassdoor_survey_roles.bonus > 100000 and glassdoor_survey_roles.seniority >= 3 and at_will.covenant_of_good_faith != 'No' and at_will.implied_contract_exception != 'No' and at_will.public_policy_exemption != 'No'
+
+group by surv_name.state,glassdoor_survey_roles.seniority
+order by Avg_Salary desc, 1
+
+limit 5
+
+/* Returns subscribers credit card type (VISA, MC, AMEX, or Discover). Calculated the total annual sales for each subscriber if we applied a 1% price increase and how much is the difference in annual credit card fees due to this increase (MC: 3%, VISA: 3.05%, Discover: 3.5%, AMEX: 4%, All others would be 2.5%) . They need this for the following subscribers:
+Active Visa card users who are enrolled in our email subscription
+Active Visa and Mastercard card users who are not enrolled in our email subscription but have corporate accounts
+Active Discover in our top markets
+Active AMEX corporate subscribers */
+
+  create table GROUP1 as
+  select userbase.user_id,
+  cancellations.cancel_id,
+  email_sub.id,
+  cof.cof_type,
+  userbase.monthly_revenue as Current_Monthly_Revenue,
+  userbase.monthly_revenue*12 as Current_Annual_Revenue,
+  userbase.monthly_revenue*1.01 as New_Monthly_Revenue,
+  userbase.monthly_revenue*1.01*12 as New_Annual_Revenue
+  from cancellations right join userbase on cancellations.cancel_id=userbase.user_id
+  left join email_sub on email_sub.id=userbase.user_id
+  left join cof on cof.cc_id=userbase.user_id
+  where cancellations.cancel_id is null and email_sub.id is not null and cof.cof_type = 'VISA'
+
+
+CREATE TABLE GROUP2 as
+select userbase.user_id,
+cancellations.cancel_id,
+email_sub.id,
+cof.cof_type,
+sub_demo.e_dom,
+sub_demo.sub_fname,
+sub_demo.sub_lname,
+userbase.monthly_revenue as Current_Monthly_Revenue,
+userbase.monthly_revenue*12 as Current_Annual_Revenue,
+userbase.monthly_revenue*1.01 as New_Monthly_Revenue,
+userbase.monthly_revenue*1.01*12 as New_Annual_Revenue
+from cancellations right join userbase on cancellations.cancel_id=userbase.user_id
+left join email_sub on email_sub.id=userbase.user_id
+left join cof on cof.cc_id=userbase.user_id
+left join sub_demo on sub_demo.sub_id=userbase.user_id
+where cancellations.cancel_id is null and cof.cof_type in ('VISA','MC') and email_sub.id is null and
+sub_demo.e_dom not in ('@yahoo.com','@outlook.com','@gmail.com','@aol.com','@hotmail.com')
+
+create table GROUP3 as
+select userbase.user_id,
+cancellations.cancel_id,
+cof.cof_type,
+userbase.country,
+sub_demo.sub_fname,
+sub_demo.sub_lname,
+userbase.monthly_revenue as Current_Monthly_Revenue,
+userbase.monthly_revenue*12 as Current_Annual_Revenue,
+userbase.monthly_revenue*1.01 as New_Monthly_Revenue,
+userbase.monthly_revenue*1.01*12 as New_Annual_Revenue
+from cancellations right join userbase on cancellations.cancel_id=userbase.user_id
+left join cof on cof.cc_id=userbase.user_id
+left join sub_demo on sub_demo.sub_id=userbase.user_id
+where cancellations.cancel_id is null and cof.cof_type = 'DSCVR' and userbase.country in ('United States','Canada')
+
+create table group4 as
+select userbase.user_id,
+cancellations.cancel_id,
+cof.cof_type,
+sub_demo.sub_fname,
+sub_demo.sub_lname,
+sub_demo.e_dom,
+userbase.monthly_revenue as Current_Monthly_Revenue,
+userbase.monthly_revenue*12 as Current_Annual_Revenue,
+userbase.monthly_revenue*1.01 as New_Monthly_Revenue,
+userbase.monthly_revenue*1.01*12 as New_Annual_Revenue
+from cancellations right join userbase on cancellations.cancel_id=userbase.user_id
+left join cof on cof.cc_id=userbase.user_id
+left join sub_demo on sub_demo.sub_id=userbase.user_id
+where cancellations.cancel_id is null and cof.cof_type = 'AMEX' and 
+sub_demo.e_dom not in ('@yahoo.com','@outlook.com','@gmail.com','@aol.com','@hotmail.com')
+
+create table ALLGROUPS as
+select USER_ID,
+COF_TYPE,
+NEW_MONTHLY_REVENUE,
+NEW_ANNUAL_REVENUE,
+'Group1' as Group_Band
+from GROUP1
+union
+select USER_ID,
+COF_TYPE,
+NEW_MONTHLY_REVENUE,
+NEW_ANNUAL_REVENUE,
+'Group2' as Group_Band
+from GROUP2
+union
+select USER_ID,
+COF_TYPE,
+NEW_MONTHLY_REVENUE,
+NEW_ANNUAL_REVENUE,
+'Group3' as Group_Band
+from GROUP3
+union
+select USER_ID,
+COF_TYPE,
+NEW_MONTHLY_REVENUE,
+NEW_ANNUAL_REVENUE,
+'Group4' as Group_Band
+from GROUP4
+
+CREATE TABLE CCFees as  
+select *,
+case when COF_TYPE = 'MC' then 0.03
+    when COF_TYPE = 'VISA' then 0.0305
+    when COF_TYPE = 'DSCVR' then 0.035
+    when COF_TYPE = 'AMEX' then 0.04
+    else 0.025 end CC_Fees
+from ALLGROUPS
+
+select allgroups.*,
+CCFees.CC_Fees,
+CCFees.CC_Fees*Allgroups.NEW_ANNUAL_REVENUE as NewAnnualTotalCCFees
+from allgroups join CCFees on allgroups.user_id=ccfees.user_id
+
+
