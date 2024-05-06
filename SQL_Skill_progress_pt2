@@ -163,4 +163,48 @@ CCFees.CC_Fees,
 CCFees.CC_Fees*Allgroups.NEW_ANNUAL_REVENUE as NewAnnualTotalCCFees
 from allgroups join CCFees on allgroups.user_id=ccfees.user_id
 
+/* Returns a preliminary price analysis on customers in various markets. They need a list of users from top markets with premium accounts who pay at least $15 per month and a list of users from non top markets with standard and premium accounts who pay at least $10 per month. */
+
+UNION:
+select user_id,
+         country,
+         subscription_type,
+         monthly_revenue as Monthly_sub
+         from userbase
+         where subscription_type = 'Premium' and country in ('United States','Canada') and      
+         monthly_revenue >=15
+        union
+        select user_id,
+        country,
+        subscription_type,
+        monthly_revenue as Monthly_sub
+        from userbase
+        where subscription_type in ('Premium','Standard') and country not in ('United 
+        States','Canada') and monthly_revenue >= 10
+
+
+SUBQUERY:
+select user_id, 
+ Monthly_sub
+ from
+        (select user_id,
+         country,
+         subscription_type,
+         monthly_revenue as Monthly_sub
+         from userbase
+         where subscription_type = 'Premium' and country in ('United States','Canada') and      
+         monthly_revenue >=15
+        union
+        select user_id,
+        country,
+        subscription_type,
+        monthly_revenue as Monthly_sub
+        from userbase
+        where subscription_type in ('Premium','Standard') and country not in ('United 
+        States','Canada') and monthly_revenue >= 10)Dummy
+
+where monthly_sub = 15
+order by monthly_sub desc 
+limit 5
+
 
